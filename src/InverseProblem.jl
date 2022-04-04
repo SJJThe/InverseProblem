@@ -28,7 +28,8 @@ export
     Solver,
     solve,
     solve!,
-    SubProblem
+    SubProblem,
+    test_tol
 
 import Base: *
 using LazyAlgebra
@@ -38,7 +39,6 @@ import OptimPackNextGen.Brent
 import OptimPackNextGen.Powell.Newuoa
 import OptimPackNextGen.Powell.Bobyqa
 
-#TODO: create as a package
 #TODO: include in doc refernces to other doc
 
 include("types.jl")

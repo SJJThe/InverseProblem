@@ -357,13 +357,20 @@ function newton_raphson_solve!(x::AbstractArray,
     g_x::AbstractArray,
     fg!::Function;
     nb_max_iter::Int = 500,
-    estim_tol::Tuple{Real,Real} = (0.0, 1e-8))
+    estim_tol::Tuple{Real,Real} = (0.0, 1e-8),
+    study::Val = Val(false))
 
     x_last = vcopy(x)
+    if study === Val(true)
+        estim_tol_evolution = Float64[]
+    end
     iter = 0
     while true
         f_x = fg!(x, g_x)
         copyto!(x, x - g_x \ f_x)
+        if study === Val(true)
+            push!(estim_tol_evolution, vnorm2(x - x_last))
+        end
         if iter >= nb_max_iter || test_tol(x, x_last, estim_tol)
             break
         end
@@ -371,7 +378,11 @@ function newton_raphson_solve!(x::AbstractArray,
         iter += 1
     end
 
-    return x
+    if study === Val(true)
+        return x, estim_tol_evolution
+    else
+        return x
+    end
 end
 
 
