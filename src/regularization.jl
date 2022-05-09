@@ -30,13 +30,13 @@ julia> R([a,] x, g [;incr]) # apply call!([a,] R, x, g [;incr])
 ```
 
 """
-struct EdgePreserving{T<:Real} <: Regularization 
+struct EdgePreserving{V,T<:Real} <: Regularization 
     τ::T
 end
 param(R::EdgePreserving) = R.τ
 
 function call!(a::Real,
-    R::EdgePreserving{T},
+    R::EdgePreserving{:v1,T},
     x::AbstractArray{T,2},
     g::AbstractArray{T,2};
     incr::Bool = false) where {T}
@@ -72,7 +72,7 @@ function call!(a::Real,
 end
 
 function call(a::Real,
-    R::EdgePreserving{T},
+    R::EdgePreserving{:v1,T},
     x::AbstractArray{T,2}) where {T}
 
     n1, n2 = size(x)
@@ -91,7 +91,89 @@ function call(a::Real,
     return a*f
 end
 
-edgepreserving(e::T) where {T} = Regul(EdgePreserving(e))
+#FIXME: code version with automatic tuning of scaling (leveling)
+function call!(a::Real,
+    R::EdgePreserving{:v2,T},
+    x::AbstractArray{T,2},
+    g::AbstractArray{T,2};
+    incr::Bool = false) where {T}
+
+    n1, n2 = size(x)
+    @assert n1 == size(g, 1) && n2 == size(g, 2)
+
+    τ = param(R)
+    ρ = sqrt(2/(n1*n2))*τ
+    ρ2 = ρ^2
+    α = 2*ρ
+    cf = T(a*α)
+
+    !incr && vfill!(g, 0.0)
+    f = Float64(0)
+    @inbounds for j in 1:n2
+        jp = min(j+1, n2)
+        @simd for i in 1:n1
+            ip = min(i+1, n1)
+            # finite differences on average over a 2x2 pixels' 
+            #interpolated cell
+            d_ipjp_ij = x[ip,jp] - x[i,j]
+            d_ijp_ipj = x[i,jp] - x[ip,j]
+            s_ipj_ijp = x[ip,j] + x[i,jp]
+            s_ij_ipjp = x[i,j] + x[ip,jp]
+            d_s = s_ij_ipjp - s_ipj_ijp
+            Dx2_ij = 1/2*d_ijp_ipj^2 + 1/2*d_ipjp_ij^2 + 
+                      1/6*d_s^2
+
+            r_ij = sqrt(Dx2_ij + ρ2)
+            f += r_ij
+
+            q_ij = 1/r_ij
+            cf_ij = cf/2*q_ij
+
+            g[i,j] += cf_ij*(1/3*d_s - d_ipjp_ij)
+            g[ip,j] -= cf_ij*(d_ijp_ipj + 1/3*d_s)
+            g[i,jp] += cf_ij*(d_ijp_ipj - 1/3*d_s)
+            g[ip,jp] += cf_ij*(d_ipjp_ij + 1/3*d_s)
+        end
+    end
+
+    return cf*(f - n1*n2*ρ)
+end
+
+function call(a::Real,
+    R::EdgePreserving{:v2,T},
+    x::AbstractArray{T,2}) where {T}
+
+    n1, n2 = size(x)
+
+    τ = param(R)
+    ρ = sqrt(2/(n1*n2))*τ
+    ρ2 = ρ^2
+    α = 2*ρ
+
+    f = Float64(0)
+    @inbounds for j in 1:n2
+        jp = min(j+1, n2)
+        @simd for i in 1:n1
+            ip = min(i+1, n1)
+            # finite differences on average over a 2x2 pixels' 
+            #interpolated cell
+            d_ipjp_ij = x[ip,jp] - x[i,j]
+            d_ijp_ipj = x[i,jp] - x[ip,j]
+            s_ipj_ijp = x[ip,j] + x[i,jp]
+            s_ij_ipjp = x[i,j] + x[ip,jp]
+            d_s = s_ij_ipjp - s_ipj_ijp
+            Dx2_ij = 1/2*d_ijp_ipj^2 + 1/2*d_ipjp_ij^2 + 
+                      1/6*d_s^2
+
+            r_ij = sqrt(Dx2_ij + ρ2)
+            f += r_ij
+        end
+    end
+
+    return a*α*(f - n1*n2*ρ)
+end
+
+edgepreserving(e::T, V::Symbol = :v1) where {T} = Regul(EdgePreserving{V,T}(e))
 
 
 

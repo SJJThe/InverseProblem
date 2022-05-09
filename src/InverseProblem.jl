@@ -15,6 +15,7 @@ export
     call!,
     compute_FDMCPSURE,
     edgepreserving,
+    homogenedgepreserving,
     HomogenRegul,
     Lkl,
     newton_raphson_solve!,
