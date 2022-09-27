@@ -11,6 +11,7 @@ module InverseProblem
 export
     alternated_scaled_solve!,
     alternated_solve!,
+    brentmin,
     call,
     call!,
     compute_FDMCPSURE,
@@ -39,6 +40,7 @@ using OptimPackNextGen
 import OptimPackNextGen.Brent
 import OptimPackNextGen.Powell.Newuoa
 import OptimPackNextGen.Powell.Bobyqa
+# using Zygote
 
 #TODO: include in doc refernces to other doc
 

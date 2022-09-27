@@ -91,7 +91,6 @@ function call(a::Real,
     return a*f
 end
 
-#FIXME: code version with automatic tuning of scaling (leveling)
 function call!(a::Real,
     R::EdgePreserving{:v2,T},
     x::AbstractArray{T,2},
@@ -102,7 +101,7 @@ function call!(a::Real,
     @assert n1 == size(g, 1) && n2 == size(g, 2)
 
     τ = param(R)
-    ρ = sqrt(2/(n1*n2))*τ
+    ρ = sqrt(2)*τ#sqrt(2/(n1*n2))*τ
     ρ2 = ρ^2
     α = 2*ρ
     cf = T(a*α)
@@ -146,7 +145,7 @@ function call(a::Real,
     n1, n2 = size(x)
 
     τ = param(R)
-    ρ = sqrt(2/(n1*n2))*τ
+    ρ = sqrt(2)*τ#sqrt(2/(n1*n2))*τ
     ρ2 = ρ^2
     α = 2*ρ
 
@@ -173,7 +172,7 @@ function call(a::Real,
     return a*α*(f - n1*n2*ρ)
 end
 
-edgepreserving(e::T, V::Symbol = :v1) where {T} = Regul(EdgePreserving{V,T}(e))
+edgepreserving(e::T, V::Symbol = :v2) where {T} = Regul(EdgePreserving{V,T}(e))
 
 
 
@@ -505,6 +504,88 @@ function call(a::Real,
 
     return a*α*norm_x^β*(f - N1*N2*ρ*norm_x)
 end
+
+
+function call!(a::Real,
+    R::HomogenEdgePreserving{:v3,T},
+    x::AbstractArray{T,2},
+    g::AbstractArray{T,2};
+    incr::Bool = false) where {T}
+    
+    N1, N2 = size(x)
+    @assert N1 == size(g, 1) && N2 == size(g, 2)
+    
+    
+    # copyto!(g, gradient(y -> call(R, y), x)[1])
+
+    # return call(R,x)
+
+    τ = param(R)
+    ρ = sqrt(2/(N1*N2))*τ 
+    ρ2 = ρ^2
+    α = 2*ρ
+    β = 1
+    norm_x2 = vdot(x,x)
+    ρ2normx2 = ρ2*norm_x2
+    norm_x = sqrt(norm_x2)
+    cg = T(a*α*norm_x^(β-2))
+    cf = T(cg*norm_x2)
+
+    !incr && vfill!(g, 0.0)
+    f = Float64(0)
+    t = Float64(0)
+    @inbounds for j in 1:N2
+        jp1 = min(j+1, N2)
+        @simd for i in 1:N1
+            ip1 = min(i+1, N1)
+            # finite differences
+            d1_ij = (x[ip1,j] - x[i,j])/2
+            d2_ij = (x[i,jp1] - x[i,j])/2
+            r_ij = sqrt(d1_ij^2 + d2_ij^2 + ρ2normx2)
+            f += r_ij
+            q_ij = 1/(2*r_ij)
+            t += q_ij
+
+            g[i,j] -= cf*q_ij*(d1_ij + d2_ij)
+            g[ip1,j] += cf*q_ij*(x[ip1,j] - x[i,j])/2
+            g[i,jp1] += cf*q_ij*(x[i,jp1] - x[i,j])/2
+        end
+    end
+    u = T(cg*(β*f - N1*N2*ρ*(1+β)*norm_x) + 2*cf*ρ2*t)
+    @inbounds @simd for i in eachindex(x, g)
+        g[i] += u*x[i]
+    end
+
+    return cf*(f - N1*N2*ρ*norm_x)
+end
+
+function call(a::Real,
+    R::HomogenEdgePreserving{:v3,T},
+    x::AbstractArray{T,2}) where {T}
+
+    τ = param(R)
+    N1, N2 = size(x)
+    ρ = sqrt(2/(N1*N2))*τ 
+    ρ2 = ρ^2
+    α = 2*ρ
+    β = 1
+    norm_x2 = vdot(x,x)
+    ρ2normx2 = ρ2*norm_x2
+    norm_x = sqrt(norm_x2)
+    f = Float64(0)
+    @inbounds for j in 1:N2
+        jp1 = min(j+1, N2)
+        @simd for i in 1:N1
+            ip1 = min(i+1, N1)
+            d1 = (x[ip1,j] - x[i,j])/2
+            d2 = (x[i,jp1] - x[i,j])/2
+            f += sqrt(d1^2 + d2^2 + ρ2normx2)
+        end
+    end
+
+    return a*α*norm_x^β*(f - N1*N2*ρ*norm_x)
+end
+
 
 degree(::HomogenEdgePreserving) = 1.0
 

@@ -82,7 +82,7 @@ function solve!(x0::AbstractVector{T},
     cache::AbstractVector{T} = T[];
     keep_loss::Bool = false,
     estim_tol::Tuple{T,T} = (T(0.0), T(1e-3)),
-    estim_bnds::AbstractVector{T} = [x0[1] - (x0[1]./2), x0[2] + (x0[2]./2)]) where {T}
+    estim_bnds::AbstractVector{T} = [x0[1] - (x0[1]./2), x0[1] + (x0[1]./2)]) where {T}
     
     function f_solve(x)
         loss = S([x])
@@ -95,6 +95,8 @@ function solve!(x0::AbstractVector{T},
     
     return x0
 end
+
+const brentmin = BrentMin()
 
 
 
@@ -292,9 +294,10 @@ function alternated_solve!(x::AbstractArray{T,N},
             push!(nb_call, length(cache))
             push!(losses, cache[end])
         end
-        if iter >= nb_max_iter || (test_tol(x, x_last, estim_tol) && 
-                                   test_tol(y, y_last, estim_tol)) ||
-                               test_tol(cache[end], loss_last, estim_tol)
+        println(cache[end])
+        if iter >= nb_max_iter || test_tol(cache[end], loss_last, estim_tol) #|| 
+                                #   (test_tol(x, x_last, estim_tol) && 
+                                #    test_tol(y, y_last, estim_tol))
             break
         end
         copyto!(x_last, x)
