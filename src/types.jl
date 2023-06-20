@@ -1,34 +1,11 @@
 #
 # types.jl --
 #
-# Defines the generic structures necessary for the module InverseProblem
+# Defines generic structures common to inverse problems.
 #
 #------------------------------------------------------------------------------
 #
-
-
-"""
-    test_tol(x, x_last, atol, rtol)
-
-yields a tolerance test between two values:
-                    |x - x_tol| <= max(atol, rtol*|x_last|)
-
-possible to give a `Tuple` `tol` instead of `atol` and `rtol`.
-
-# Example
-```julia
-julia> test_tol(x, x_last, atol, rtol)
-julia> tol = (atol, rtol)
-julia> test_tol(x, x_last, tol)
-```
-
-"""
-test_tol(x::X, x_last::X, atol::T, rtol::T) where {X<:Real,T<:Real} = 
-         abs(x - x_last) <= max(atol, rtol*abs(x_last))
-test_tol(x::X, x_last::X, atol::T, rtol::T) where {X<:AbstractArray,T<:Real} = 
-         vnorm2(x - x_last) <= max(atol, rtol*vnorm2(x_last))
-test_tol(x, x_last, tol::Tuple{Real,Real}) = test_tol(x, x_last, tol[1], tol[2])
-
+# This file is part of InverseProblem
 
 
 
@@ -47,7 +24,7 @@ abstract type Cost <: Mapping end
 (C::Cost)(a, x::D, g::D; kwds...) where {D} = call!(a, C, x, g; kwds...)
 (C::Cost)(x::D, g::D; kwds...) where {D} = call!(1.0, C, x, g; kwds...)
 
-#FIXME: add the call to a sum of :Cost
+
 
 """
     call!([a::Real=1,] f, x, g; incr::Bool = false)
@@ -71,6 +48,77 @@ call(f, x) = call(1.0, f, x)
 
 
 """
+    Lkl(A, d [,w=ones(size(d))])
+
+yields a structure containing the elements essential to compute the Maximum likelihood 
+criterion, in the Gaussian hypothesis, of an `AbstractArray` `x`, that is:
+                            (A(x) - d)'.Diag(w).(A(x) - d)
+
+Getters of an instance `L` can be imported with `InversePbm.` before:
+ - model(L)   # gets the model `A`.
+ - data(L)    # gets the data `d`.
+ - weights(L) # gets the weights `w` associated to the data `d`.
+
+# Examples
+ To apply it to an `AbstractArray` `x`, use:
+```julia
+julia> L([a,] x)             # apply call([a,] L, x)
+julia> L([a,] x, g [; incr]) # apply call!([a,] L, x, g [; incr])
+```
+
+"""
+struct Lkl{M<:Mapping,D<:AbstractArray} <: Cost
+    A::M # model
+    d::D # data
+    w::D # weights of data
+
+    function Lkl(A::M, d::D, w::D) where {M<:Mapping,D<:AbstractArray}
+        @assert size(d) == size(w)# == output_size(A)
+        return new{M,D}(A, d, w)
+    end
+end
+
+Lkl(A, d::D) where{D<:AbstractArray} = Lkl(A, d, ones(size(d)))
+
+model(L::Lkl) = L.A
+data(L::Lkl) = L.d
+weights(L::Lkl) = L.w
+input_size(L::Lkl) = input_size(model(L))
+output_size(L::Lkl) = size(data(L))
+
+
+function call!(a::Real,
+    L::Lkl,
+    x::AbstractArray{T,N},
+    g::AbstractArray{T,N};
+    incr::Bool = false) where {T,N}
+    
+    A, d, w = model(L), data(L), weights(L)
+
+    res = A(x) - d
+    wres = w .*res
+    lkl = a*vdot(res, wres)
+    # do also g = (incr=false->0 : incr=true->1)*g + 2*A'*wres
+    apply!(2*a, LazyAlgebra.Adjoint, A, wres, true, (incr ? 1 : 0), g)
+
+    return Float64(lkl)
+end
+
+function call(a::Real,
+    L::Lkl,
+    x::AbstractArray{T,N}) where {T,N}
+    
+    A, d, w = model(L), data(L), weights(L)
+    res = A(x) - d
+    lkl = a*vdot(res, w, res)
+
+    return Float64(lkl)
+end
+
+
+
+
+"""
     Regularization
 
 Abstract type which obeys the `call!` and `call` laws, and behaves as a `Cost` type. 
@@ -79,6 +127,7 @@ Abstract type which obeys the `call!` and `call` laws, and behaves as a `Cost` t
 abstract type Regularization <: Cost end
 
 
+#FIXME: a sum of Regularization must be a Regularization
 
 
 """
@@ -116,21 +165,28 @@ Regul:
  - function `func` : MyRegul
 ```
 
+#FIXME: update
+
 """
 struct Regul{T<:Real,F} <: Regularization
     mu::T # multiplier
     f::F # function
+    direct_inversion::Bool
 end
 multiplier(R::Regul) = R.mu
 func(R::Regul) = R.f
+use_direct_inversion(R::Regul) = R.direct_inversion
 
 Regul(f) = Regul(1.0, f)
+Regul(f, i::Bool) = Regul(1.0, f, i)
 
 *(a::Real, R::Regul) = Regul(a*multiplier(R), func(R))
+
 Base.show(io::IO, R::Regul) = begin
     print(io,"Regul:")
     print(io,"\n - level `mu` : ",multiplier(R))
     print(io,"\n - function `func` : ",func(R))
+    print(io,"\n - use direct inversion `direct_inversion` : ",use_direct_inversion(R))
 end
 
 function call!(a::Real,
@@ -161,6 +217,17 @@ function call(R::Regul,
     x::AbstractArray{T,N}) where {T,N}
     
     return call(multiplier(R), func(R), x)
+end
+
+function get_grad_op(a::Real,
+    R::Regul)
+
+    return get_grad_op(a*multiplier(R), func(R))
+end
+
+function get_grad_op(R::Regul)
+
+    return get_grad_op(multiplier(R), func(R))
 end
 
 
@@ -209,9 +276,9 @@ multiplier(R::HomogenRegul) = multiplier(R.Reg)
 func(R::HomogenRegul) = func(R.Reg)
 degree(R::HomogenRegul) = R.deg
 
-HomogenRegul(mu::Real, f, deg::Real) = HomogenRegul(Regul(mu, f), deg)
-HomogenRegul(mu::Real, f) = HomogenRegul(mu, f, degree(f))
-HomogenRegul(f) = HomogenRegul(1.0, f)
+HomogenRegul(mu::Real, f, inv::Bool, deg::Real) = HomogenRegul(Regul(mu, f, inv), deg)
+HomogenRegul(mu::Real, f, inv::Bool=false) = HomogenRegul(mu, f, inv, degree(f))
+HomogenRegul(f, inv::Bool=false) = HomogenRegul(1.0, f, inv)
 
 *(a::Real, R::HomogenRegul) = HomogenRegul(a*multiplier(R), func(R))
 Base.show(io::IO, R::HomogenRegul) = begin
@@ -230,80 +297,7 @@ call(R::HomogenRegul, x) = call(R.Reg, x)
 
 
 """
-    Lkl(A, d [,w=ones(size(d))])
-
-yields a structure containing the elements essential to compute the Maximum likelihood 
-criterion, in the Gaussian hypothesis, of an `AbstractArray` `x`, that is:
-                            (A(x) - d)'.Diag(w).(A(x) - d)
-
-Getters of an instance `L` can be imported with `InversePbm.` before:
- - model(L)   # gets the model `A`.
- - data(L)    # gets the data `d`.
- - weights(L) # gets the weights `w` associated to the data `d`.
-
-# Examples
- To apply it to an `AbstractArray` `x`, use:
-```julia
-julia> L([a,] x)             # apply call([a,] L, x)
-julia> L([a,] x, g [; incr]) # apply call!([a,] L, x, g [; incr])
-```
-
-"""
-struct Lkl{F<:Function,D<:AbstractArray} <: Cost
-    A::F # model
-    d::D # data
-    w::D # weights of data
-
-    function Lkl(A::F, d::D, w::D) where {F<:Function,D<:AbstractArray}
-        @assert size(d) == size(w)# == output_size(A)
-        return new{F,D}(A, d, w)
-    end
-end
-
-Lkl(A, d::D) where{D<:AbstractArray} = Lkl(A, d, ones(size(d)))
-
-model(L::Lkl) = L.A
-data(L::Lkl) = L.d
-weights(L::Lkl) = L.w
-input_size(L::Lkl) = input_size(model(L))
-output_size(L::Lkl) = size(data(L))
-
-
-function call!(a::Real,
-    L::Lkl,
-    x::AbstractArray{T,N},
-    g::AbstractArray{T,N};
-    incr::Bool = false) where {T,N}
-    
-    A, d, w = model(L), data(L), weights(L)
-
-    @assert typeof(A) <: Mapping #FIXME: if not, not able to update gradient g
-
-    res = A(x) - d
-    wres = w .*res
-    lkl = a*vdot(res, wres)
-    # do also g = (incr=false->0 : incr=true->1)*g + 2*A'*wres
-    apply!(2*a, LazyAlgebra.Adjoint, A, wres, true, (incr ? 1 : 0), g)
-
-    return Float64(lkl)
-end
-
-function call(a::Real,
-    L::Lkl,
-    x::AbstractArray{T,N}) where {T,N}
-    
-    A, d, w = model(L), data(L), weights(L)
-    res = A(x) - d
-    lkl = a*vdot(res, w, res)
-
-    return Float64(lkl)
-end
-
-
-
-
-"""
-    SubProblem(L, R)
+    InvProblem(L, R)
 
 yields a structure containing the ingredients to compute a sub-problem
 criterion for a value of x:
@@ -320,7 +314,7 @@ Getters of an instance `S` can be imported with `InversePbm.` before:
 # Examples
 It is possible to create a new instance by directly giving the elements:
 ```julia
-julia> S = SubProblem(A, d, w, R)
+julia> S = InvProblem(A, d, w, R)
 ```
 
  To apply it to an `AbstractArray` `x`, use:
@@ -330,30 +324,30 @@ julia> S([a,] x, g [; incr]) # apply call!([a,] S, x, g [; incr])
 ```
 
 """
-struct SubProblem{RG<:Regularization} <: Cost
+struct InvProblem{RG<:Regularization} <: Cost
     L::Lkl
     R::RG
 end
 
-function SubProblem(A,
+function InvProblem(A::Mapping,
     d::AbstractArray{T,N},
     w::AbstractArray{T,N},
     R::Regularization) where {T,N}
 
-    return SubProblem(Lkl(A, d, w), R)
+    return InvProblem(Lkl(A, d, w), R)
 end
 
-likelihood(S::SubProblem) = S.L
-model(S::SubProblem) = model(S.L)
-data(S::SubProblem) = data(S.L)
-weights(S::SubProblem) = weights(S.L)
-regul(S::SubProblem) = S.R
-input_size(S::SubProblem) = input_size(model(S))
-output_size(S::SubProblem) = size(data(S))
+likelihood(S::InvProblem) = S.L
+model(S::InvProblem) = model(S.L)
+data(S::InvProblem) = data(S.L)
+weights(S::InvProblem) = weights(S.L)
+regul(S::InvProblem) = S.R
+input_size(S::InvProblem) = input_size(model(S))
+output_size(S::InvProblem) = size(data(S))
 
 
 function call!(a::Real,
-    S::SubProblem,
+    S::InvProblem,
     x::AbstractArray{T,N},
     g::AbstractArray{T,N};
     incr::Bool = false) where {T,N}
@@ -365,7 +359,7 @@ function call!(a::Real,
 end
 
 function call(a::Real,
-    S::SubProblem,
+    S::InvProblem,
     x::AbstractArray{T,N}) where {T,N}
     
     L, R = likelihood(S), regul(S)
@@ -380,7 +374,7 @@ end
     Solver
 
 Abstract type shared by methods for solving inverse problems. The type is used to specified
-which method to use when optimizing on a `SubProblem` structure. An instance of a structure 
+which method to use when optimizing on a `InvProblem` structure. An instance of a structure 
 of super-type `Solver` obeys to solving methods `solve` and `solve!`. 
 
 """

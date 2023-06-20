@@ -5,6 +5,32 @@
 #
 #------------------------------------------------------------------------------
 #
+# This file is part of InverseProblem
+
+
+
+"""
+    test_tol(x, x_last, atol, rtol)
+
+yields a tolerance test between two values:
+                    |x - x_tol| <= max(atol, rtol*|x_last|)
+
+possible to give a `Tuple` `tol` instead of `atol` and `rtol`.
+
+# Example
+```julia
+julia> test_tol(x, x_last, atol, rtol)
+julia> tol = (atol, rtol)
+julia> test_tol(x, x_last, tol)
+```
+
+"""
+test_tol(x::X, x_last::X, atol::T, rtol::T) where {X<:Real,T<:Real} = 
+         abs(x - x_last) <= max(atol, rtol*abs(x_last))
+test_tol(x::X, x_last::X, atol::T, rtol::T) where {X<:AbstractArray,T<:Real} = 
+         vnorm2(x - x_last) <= max(atol, rtol*vnorm2(x_last))
+test_tol(x, x_last, tol::Tuple{Real,Real}) = test_tol(x, x_last, tol[1], tol[2])
+
 
 
 """
@@ -199,145 +225,144 @@ const powellbobyqa = PowellBobyqa()
 
 
 
-"""
-    alternated_solve!(x, y, Rx, Ry, form_Spbm_x, method_solver_x [,form_Spbm_y] 
-                      [,method_solver_y]; kwds...)
+# """
+#     alternated_solve!(x, y, Rx, Ry, form_Spbm_x, method_solver_x [,form_Spbm_y] 
+#                       [,method_solver_y]; kwds...)
 
-gives the results (in-place) of an alternated estimation strategy of `x` and `y`, with
-`Rx` and `Ry` are respectively the regularization of `x` and `y`. 
+# gives the results (in-place) of an alternated estimation strategy of `x` and `y`, with
+# `Rx` and `Ry` are respectively the regularization of `x` and `y`. 
 
-`form_Spbm_x` and `form_Spbm_y` must be `Function`s whiche yields a `SubProblem` structure
-containing the ingredients to estimate the unknowns. If `form_Spbm_y` is not specified, 
-`form_Spbm_x` is taken by default for `y`.
+# `form_Spbm_x` and `form_Spbm_y` must be `Function`s whiche yields a `SubProblem` structure
+# containing the ingredients to estimate the unknowns. If `form_Spbm_y` is not specified, 
+# `form_Spbm_x` is taken by default for `y`.
 
-`method_solver_x` and `method_solver_y` specify the method used to estimate the unknowns.
-If `method_solver_y` is not given, `method_solver_x` is taken by default for `y`.
+# `method_solver_x` and `method_solver_y` specify the method used to estimate the unknowns.
+# If `method_solver_y` is not given, `method_solver_x` is taken by default for `y`.
 
-# Keywords
- - maxiter : (`500` by default) specifies the maximum number of iteration of the alternated
-   strategy. 
- - estim_tol : (`(0.0,1e-8)` by default) gives the absolute and relative tolerance which
-   define the stop criterion of the alternated strategy.
- - auto_scale : (`false` by default) specifies if the tuning of the hyper-parameter must 
-   be done automatically via the scaling indetermination. To use this option, `Rx` and `Ry`
-   must be `HomogenRegul` structures.
- - alpha : (`1.0` by default) is the initial scaling of the problem.
- - alpha_tol : (`(0.0,1e-3` by default) gives the absolute and relative tolerance which 
-   define the stop criterion of the "warming step" of the auto-scale method.
- - study : (`false` by default) if `true`, the method will also return the number of calls
-   of the direct model and the value of the loss function at each iteration, 
-   used for the optimization.
- - cache : (`T[]` by default) if an outside `AbstractVector` is given, the method will store
-   every value of the loss function computed throughout the iterations.
- - kwds_x : (`()` by default) is here to specify the keywords to give to the method 
-   used to estimate `x`.
- - kwds_y : (`kwds_x` by default) is here to specify the keywords to give to the method 
-   used to estimate `y`.
+# # Keywords
+#  - maxiter : (`500` by default) specifies the maximum number of iteration of the alternated
+#    strategy. 
+#  - estim_tol : (`(0.0,1e-8)` by default) gives the absolute and relative tolerance which
+#    define the stop criterion of the alternated strategy.
+#  - auto_scale : (`false` by default) specifies if the tuning of the hyper-parameter must 
+#    be done automatically via the scaling indetermination. To use this option, `Rx` and `Ry`
+#    must be `HomogenRegul` structures.
+#  - alpha : (`1.0` by default) is the initial scaling of the problem.
+#  - alpha_tol : (`(0.0,1e-3` by default) gives the absolute and relative tolerance which 
+#    define the stop criterion of the "warming step" of the auto-scale method.
+#  - study : (`false` by default) if `true`, the method will also return the number of calls
+#    of the direct model and the value of the loss function at each iteration, 
+#    used for the optimization.
+#  - cache : (`T[]` by default) if an outside `AbstractVector` is given, the method will store
+#    every value of the loss function computed throughout the iterations.
+#  - kwds_x : (`()` by default) is here to specify the keywords to give to the method 
+#    used to estimate `x`.
+#  - kwds_y : (`kwds_x` by default) is here to specify the keywords to give to the method 
+#    used to estimate `y`.
 
-"""
-function alternated_solve!(x::AbstractArray{T,N},
-    y::AbstractArray{T,N},
-    Rx::Regularization,
-    Ry::Regularization,
-    form_Spbm_x::Function,
-    method_solver_x::Solver,
-    form_Spbm_y::Function = form_Spbm_x,
-    method_solver_y::Solver = method_solver_x;
-    nb_max_iter::Int = 500,
-    estim_tol::Tuple{Real,Real} = (0.0, 1e-8),
-    auto_scale::Bool = false,
-    alpha::Real = 1.0,
-    alpha_tol::Tuple{Real,Real} = (0.0, 1e-3),
-    study::Val = Val(false),
-    cache::AbstractVector{T} = T[],
-    kwds_x::K = (),
-    kwds_y::K = kwds_x) where {T,N,K<:NamedTuple}
+# """
+# function alternated_solve!(x::AbstractArray{T,N},
+#     y::AbstractArray{T,N},
+#     Rx::Regularization,
+#     Ry::Regularization,
+#     form_Spbm_x::Function,
+#     method_solver_x::Solver,
+#     form_Spbm_y::Function = form_Spbm_x,
+#     method_solver_y::Solver = method_solver_x;
+#     nb_max_iter::Int = 500,
+#     estim_tol::Tuple{Real,Real} = (0.0, 1e-8),
+#     auto_scale::Bool = false,
+#     alpha::Real = 1.0,
+#     alpha_tol::Tuple{Real,Real} = (0.0, 1e-3),
+#     study::Val = Val(false),
+#     cache::AbstractVector{T} = T[],
+#     kwds_x::K = (),
+#     kwds_y::K = kwds_x) where {T,N,K<:NamedTuple}
     
-    (auto_scale && typeof(Rx) == HomogenRegul{Real} && 
-     typeof(Ry) == HomogenRegul{Real}) && error("Regularizations must be homogeneous to have auto-scale.")
+#     (auto_scale && typeof(Rx) == HomogenRegul{Real} && 
+#      typeof(Ry) == HomogenRegul{Real}) && error("Regularizations must be homogeneous to have auto-scale.")
 
-    if study === Val(true)
-        nb_call = []
-        losses = []
-    end
-    x_last = vcopy(x)
-    y_last = vcopy(y)
-    alpha_last = 0.0
-    loss_last = 0.0
-    iter = 0
-    while true
-        while true
-            # Update x
-            S_x = form_Spbm_x(y, alpha^degree(Rx)*Rx)
-            solve!(x, S_x, method_solver_x, cache; keep_loss=true, kwds_x...)
-            if auto_scale 
-                # Update scaling
-                alpha = best_scaling_factor(x, Rx, y, Ry)
-                if iter > 0 || test_tol(alpha, alpha_last, alpha_tol)
-                    break
-                end
-                alpha_last = alpha
-            else
-                break
-            end
-        end
-        # Update y
-        S_y = form_Spbm_y(x, (1/alpha^degree(Ry))*Ry)
-        solve!(y, S_y, method_solver_y, cache; keep_loss=true, kwds_y...)
-        # Update scaling
-        auto_scale && (alpha = best_scaling_factor(x, Rx, y, Ry))
-        if study === Val(true)
-            if iter == 0
-                push!(nb_call, 1)
-                push!(losses, cache[1])
-            end
-            push!(nb_call, length(cache))
-            push!(losses, cache[end])
-        end
-        println(cache[end])
-        if iter >= nb_max_iter || test_tol(cache[end], loss_last, estim_tol) #|| 
-                                #   (test_tol(x, x_last, estim_tol) && 
-                                #    test_tol(y, y_last, estim_tol))
-            break
-        end
-        copyto!(x_last, x)
-        copyto!(y_last, y)
-        loss_last = cache[end]
-        iter += 1
-    end
-    # Post scaling
-    if auto_scale
-        vscale!(x, alpha)
-        vscale!(y, 1/alpha)
-    end
+#     if study === Val(true)
+#         nb_call = [1]
+#         S_x_0 = form_Spbm_x(y, alpha^degree(Rx)*Rx)
+#         S_y_0 = form_Spbm_y(x, (1/alpha^degree(Ry))*Ry)
+#         losses = [S_x_0(x) + S_y_0.R(y)]
+#     end
+#     x_last = vcopy(x)
+#     y_last = vcopy(y)
+#     alpha_last = 0.0
+#     loss_last = 0.0
+#     iter = 0
+#     while true
+#         while true
+#             # Update x
+#             S_x = form_Spbm_x(y, alpha^degree(Rx)*Rx)
+#             solve!(x, S_x, method_solver_x, cache; keep_loss=true, kwds_x...)
+#             if auto_scale 
+#                 # Update scaling
+#                 alpha = best_scaling_factor(x, Rx, y, Ry)
+#                 if iter > 0 || test_tol(alpha, alpha_last, alpha_tol)
+#                     break
+#                 end
+#                 alpha_last = alpha
+#             else
+#                 break
+#             end
+#         end
+#         # Update y
+#         S_y = form_Spbm_y(x, (1/alpha^degree(Ry))*Ry)
+#         solve!(y, S_y, method_solver_y, cache; keep_loss=true, kwds_y...)
+#         # Update scaling
+#         auto_scale && (alpha = best_scaling_factor(x, Rx, y, Ry))
+#         if study === Val(true)
+#             push!(nb_call, length(cache))
+#             S_x_kp1 = form_Spbm_x(y, alpha^degree(Rx)*Rx)
+#             push!(losses, S_y(y) + S_x_kp1.R(x))
+#         end
+#         # println(cache[end])
+#         if iter >= nb_max_iter || test_tol(cache[end], loss_last, estim_tol) #|| 
+#                                 #   (test_tol(x, x_last, estim_tol) && 
+#                                 #    test_tol(y, y_last, estim_tol))
+#             break
+#         end
+#         copyto!(x_last, x)
+#         copyto!(y_last, y)
+#         loss_last = cache[end]
+#         iter += 1
+#     end
+#     # Post scaling
+#     if auto_scale
+#         vscale!(x, alpha)
+#         vscale!(y, 1/alpha)
+#     end
     
-    if study === Val(true)
-        return x, y, nb_call, losses
-    else
-        return x, y
-    end
-end
+#     if study === Val(true)
+#         return x, y, nb_call, losses
+#     else
+#         return x, y
+#     end
+# end
 
 
 
 
-"""
-    best_scaling_factor(x, Rx, y, Ry)
+# """
+#     best_scaling_factor(x, Rx, y, Ry)
 
-yields the optimal scaling factor α of the couple of solution `(α*x,y/α)`, according
-to the MAP problem, with `Rx` and `Ry` instances of `HomogenRegul`.
+# yields the optimal scaling factor α of the couple of solution `(α*x,y/α)`, according
+# to the MAP problem, with `Rx` and `Ry` instances of `HomogenRegul`.
 
-"""
-function best_scaling_factor(x::AbstractArray{T,N},
-    Rx::HomogenRegul,
-    y::AbstractArray{T,N},
-    Ry::HomogenRegul) where {T,N}
+# """
+# function best_scaling_factor(x::AbstractArray{T,N},
+#     Rx::HomogenRegul,
+#     y::AbstractArray{T,N},
+#     Ry::HomogenRegul) where {T,N}
     
-    q_x = degree(Rx)
-    q_y = degree(Ry)
+#     q_x = degree(Rx)
+#     q_y = degree(Ry)
 
-    return ((q_y*call(Ry, y))/(q_x*call(Rx, x)))^(1/(q_x + q_y))
-end
+#     return ((q_y*call(Ry, y))/(q_x*call(Rx, x)))^(1/(q_x + q_y))
+# end
 
 
 

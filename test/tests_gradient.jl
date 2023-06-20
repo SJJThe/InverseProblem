@@ -5,7 +5,7 @@ const IP = InverseProblem
 using PyPlot
 const plt = PyPlot
 
-Regx = IP.homogenedgepreserving(1e3, :v3)#IP.homogenedgepreserving(1e3, :v2)
+Regx = IP.edgepreserving(1e3, :v3)##IP.homogenedgepreserving(1e3, :v3)#IP.homogenedgepreserving(1e3, :v2)
 
 niter = 5
 nlin = round(Int, niter/2)

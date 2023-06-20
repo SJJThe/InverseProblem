@@ -1,36 +1,41 @@
 #
 # InverseProblem.jl --
 #
-# Tools for solving inverse problems
+# Tools for solving inverse problems.
 #
 #------------------------------------------------------------------------------
 #
 
+
+#TODO: include in doc references to other doc
+#TODO: SURE computation
+#TODO: generalize the precision matrix type (eg ASAP)
+#TODO: complete README.md
+#FIXME: add the call to a sum of :Cost
+#FIXME: rename SubProblem into InvProblem
+
 module InverseProblem
 
 export
-    alternated_scaled_solve!,
-    alternated_solve!,
     brentmin,
     call,
     call!,
-    compute_FDMCPSURE,
     edgepreserving,
     homogenedgepreserving,
     HomogenRegul,
+    InvProblem,
     Lkl,
     newton_raphson_solve!,
     norml1,
     norml2,
     powellnewuoa,
-    quadraticsmoothness,
+    tikhonov,
     quasinewton,
     Regul,
     Regularization,
     Solver,
     solve,
     solve!,
-    SubProblem,
     test_tol
 
 import Base: *
@@ -40,9 +45,7 @@ using OptimPackNextGen
 import OptimPackNextGen.Brent
 import OptimPackNextGen.Powell.Newuoa
 import OptimPackNextGen.Powell.Bobyqa
-# using Zygote
 
-#TODO: include in doc refernces to other doc
 
 include("types.jl")
 include("regularization.jl")
