@@ -185,7 +185,7 @@ julia> R([a,] x, g [;incr]) # apply call!([a,] R, x, g [;incr])
 ```
 
 """
-struct EdgePreserving{V,T<:Real} <: Regularization 
+struct EdgePreserving{V,T<:AbstractFloat} <: Regularization 
     τ::T
 end
 param(R::EdgePreserving) = R.τ
@@ -254,7 +254,7 @@ function call(a::Real,
     return cf*(f - ρ)
 end
 
-edgepreserving(e::T, V::Symbol = :v1) where {T} = Regul(EdgePreserving{V,T}(e))
+edgepreserving(e::T, V::Symbol = :v1) where {T} = Regul(EdgePreserving{V,Float64}(Float64(e)), false)
 
 
 

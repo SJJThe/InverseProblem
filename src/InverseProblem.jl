@@ -36,6 +36,7 @@ export
     Solver,
     solve,
     solve!,
+    SumRegul,
     test_tol
 
 import Base: *

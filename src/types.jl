@@ -127,8 +127,6 @@ Abstract type which obeys the `call!` and `call` laws, and behaves as a `Cost` t
 abstract type Regularization <: Cost end
 
 
-#FIXME: a sum of Regularization must be a Regularization
-
 
 """
     Regul([mu::Real=1,] f)
@@ -177,8 +175,8 @@ multiplier(R::Regul) = R.mu
 func(R::Regul) = R.f
 use_direct_inversion(R::Regul) = R.direct_inversion
 
-Regul(f) = Regul(1.0, f)
 Regul(f, i::Bool) = Regul(1.0, f, i)
+Regul(f) = Regul(1.0, f, false)
 
 *(a::Real, R::Regul) = Regul(a*multiplier(R), func(R))
 
@@ -188,6 +186,7 @@ Base.show(io::IO, R::Regul) = begin
     print(io,"\n - function `func` : ",func(R))
     print(io,"\n - use direct inversion `direct_inversion` : ",use_direct_inversion(R))
 end
+
 
 function call!(a::Real,
     R::Regul,
@@ -206,6 +205,7 @@ function call!(R::Regul,
     return call!(multiplier(R), func(R), x, g; incr=incr)
 end
 
+
 function call(a::Real,
     R::Regul,
     x::AbstractArray{T,N}) where {T,N}
@@ -219,6 +219,7 @@ function call(R::Regul,
     return call(multiplier(R), func(R), x)
 end
 
+
 function get_grad_op(a::Real,
     R::Regul)
 
@@ -229,7 +230,6 @@ function get_grad_op(R::Regul)
 
     return get_grad_op(multiplier(R), func(R))
 end
-
 
 
 
@@ -293,6 +293,31 @@ call!(R::HomogenRegul, x, g; kwds...) = call!(R.Reg, x, g; kwds...)
 call(a, R::HomogenRegul, x) = call(a, R.Reg, x)
 call(R::HomogenRegul, x) = call(R.Reg, x)
 
+
+
+
+"""
+    SumRegul(R1, R2)
+
+yields a sum of regularizations that is itself a `Regularization` type. To apply
+an array `x` to such a structure, it is possible to use the functions `call!`
+and `call` or to use the `LazyAlgebra` operator formalism.
+
+"""
+struct SumRegul{Reg<:Regularization,R<:Regularization} <: Regularization
+    R1::Reg
+    R2::R
+end
+
+Base.:+(R1::Reg, R2::Regularization) where {Reg<:Regularization} = SumRegul(R1, R2)
+
+function call!(a, S::SumRegul, x, g; kwds...)
+    return call!(a, S.R1, x, g; kwds...) + call!(a, S.R2, x, g; kwds...)
+end
+
+function call(a, S::SumRegul, x)
+    return call(a, S.R1, x) + call(a, S.R2, x)
+end
 
 
 

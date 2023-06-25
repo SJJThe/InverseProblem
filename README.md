@@ -147,12 +147,27 @@ reg() = HomogenRegul(mu, f, direct_inversion, degree(::CustomReg))
 
 Several commonly used regularization are already defined in the file
 `regularization.jl`:
- - $\ell 1$ norm;
- - $\ell 2$ norm;
- - Tikhonov;
- - edge-preserving;
- - an homogeneous version of edge-preserving;
+ - $\ell 1$ norm as `norml1()`;
+ - $\ell 2$ norm as `norml2()`;
+ - Tikhonov as `tikhonov()`;
+ - edge-preserving as `edgepreserving($\tau$)` with $\tau$ a parameter tuning
+   the $\ell 1$-$\ell 2$ threshold;
+ - an homogeneous version of edge-preserving as `homogenedgepreserving($\tau$)`;
 
+### Sum of regularization
+
+It is possible to call a sum of `Regularization` structure which will behave as
+the sum of the two structure. For instance, the following lines yield the same
+results:
+```julia
+# create array x
+x = randn(50,50)
+# creation of a SumRegul structure and application to x
+sumreg = tikhonov() + edgepreserving(10^1)
+sumreg(x)
+# or without SumRegul structure
+tikhonov()(x) + edgepreserving(10^1)(x)
+```
 
 ### Storing loss function elements
 
