@@ -197,13 +197,13 @@ function call!(a::Real,
     return call!(a*multiplier(R), func(R), x, g; incr=incr)
 end
 
-function call!(R::Regul,
-    x::AbstractArray{T,N},
-    g::AbstractArray{T,N};
-    incr::Bool = false) where {T,N}
+# function call!(R::Regul,
+#     x::AbstractArray{T,N},
+#     g::AbstractArray{T,N};
+#     incr::Bool = false) where {T,N}
 
-    return call!(multiplier(R), func(R), x, g; incr=incr)
-end
+#     return call!(multiplier(R), func(R), x, g; incr=incr)
+# end
 
 
 function call(a::Real,
@@ -213,11 +213,11 @@ function call(a::Real,
     return call(a*multiplier(R), func(R), x)
 end
 
-function call(R::Regul,
-    x::AbstractArray{T,N}) where {T,N}
+# function call(R::Regul,
+#     x::AbstractArray{T,N}) where {T,N}
     
-    return call(multiplier(R), func(R), x)
-end
+#     return call(multiplier(R), func(R), x)
+# end
 
 
 function get_grad_op(a::Real,
@@ -228,7 +228,7 @@ end
 
 function get_grad_op(R::Regul)
 
-    return get_grad_op(multiplier(R), func(R))
+    return get_grad_op(1.0, func(R))
 end
 
 
@@ -275,6 +275,7 @@ end
 multiplier(R::HomogenRegul) = multiplier(R.Reg)
 func(R::HomogenRegul) = func(R.Reg)
 degree(R::HomogenRegul) = R.deg
+use_direct_inversion(R::HomogenRegul) = use_direct_inversion(R.Reg)
 
 HomogenRegul(mu::Real, f, inv::Bool, deg::Real) = HomogenRegul(Regul(mu, f, inv), deg)
 HomogenRegul(mu::Real, f, inv::Bool=false) = HomogenRegul(mu, f, inv, degree(f))
@@ -318,6 +319,7 @@ end
 function call(a, S::SumRegul, x)
     return call(a, S.R1, x) + call(a, S.R2, x)
 end
+
 
 
 
@@ -433,5 +435,4 @@ computed for optimization by the method `m`.
 """
 solve(x::AbstractArray, S, m, c=Float64[]; kwds...) = solve!(vcopy(x), S, m, c; kwds...)
 solve(S, m, c=Float64[]; kwds...) = solve(ones(input_size(S)), S, m, c; kwds...)
-
 
