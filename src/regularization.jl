@@ -152,6 +152,8 @@ end
 function get_grad_op(a::Real,
     ::Tikhonov)
 
+    D = Diff()
+    
     return 2*Float64(a)*(D'*D)
 end
 

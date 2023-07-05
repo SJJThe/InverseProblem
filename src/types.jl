@@ -178,7 +178,7 @@ use_direct_inversion(R::Regul) = R.direct_inversion
 Regul(f, i::Bool) = Regul(1.0, f, i)
 Regul(f) = Regul(1.0, f, false)
 
-*(a::Real, R::Regul) = Regul(a*multiplier(R), func(R))
+*(a::Real, R::Regul) = Regul(a*multiplier(R), func(R), use_direct_inversion(R))
 
 Base.show(io::IO, R::Regul) = begin
     print(io,"Regul:")
@@ -281,7 +281,8 @@ HomogenRegul(mu::Real, f, inv::Bool, deg::Real) = HomogenRegul(Regul(mu, f, inv)
 HomogenRegul(mu::Real, f, inv::Bool=false) = HomogenRegul(mu, f, inv, degree(f))
 HomogenRegul(f, inv::Bool=false) = HomogenRegul(1.0, f, inv)
 
-*(a::Real, R::HomogenRegul) = HomogenRegul(a*multiplier(R), func(R))
+*(a::Real, R::HomogenRegul) = HomogenRegul(a*multiplier(R), func(R), use_direct_inversion(R))
+
 Base.show(io::IO, R::HomogenRegul) = begin
     print(io,"HomogenRegul:")
     print(io,"\n - level `mu` : ",multiplier(R))
@@ -293,6 +294,8 @@ call!(a, R::HomogenRegul, x, g; kwds...) = call!(a, R.Reg, x, g; kwds...)
 call!(R::HomogenRegul, x, g; kwds...) = call!(R.Reg, x, g; kwds...)
 call(a, R::HomogenRegul, x) = call(a, R.Reg, x)
 call(R::HomogenRegul, x) = call(R.Reg, x)
+get_grad_op(a, R::HomogenRegul) = get_grad_op(a, R.Reg)
+get_grad_op(R::HomogenRegul) = get_grad_op(1.0, R)
 
 
 
