@@ -185,4 +185,25 @@ by using `call!` and `call`).
 
 ## Using different optimization strategies to solve the minimization problem
 
-...
+The packages also defines structures of type `Solver` which can be used to solve
+the problem defined by an instance `S` of type `Cost` (e.g. an `Lkl` or
+`InvProblem structure`). Such structure calls the functions `solve` and `solve!`
+to find the solution using a chosen optimization method `m`:
+```julia
+# define a cache to store the criterion's values
+c = []
+# initialization of the optimization method
+x0 = randn(50,50)
+# call to solve the problem S and store the criterion's value at each iteration in c
+solve(x0, S, m, c; keep_loss=true)
+```
+
+Multiple optimization strategies are already called as the `VMLM-B` quasi-Newton
+method, the Brent `fmin` method and Powell's `Bobyqa` and `Newuoa` methods, all
+defined in the [OptimPackNextGen](https://github.com/emmt/OptimPackNextGen.jl)
+package.
+
+This part of the package is to be considered as a wrapper on these optimization
+methods, used to facilitate the storage and extraction of intermediate values of
+the computation.
+

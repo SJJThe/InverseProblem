@@ -1,5 +1,5 @@
 #
-# InverseProblem.jl --
+# InverseProblem.jl
 #
 # Tools for solving inverse problems.
 #
@@ -7,27 +7,32 @@
 #
 
 
-#TODO: include in doc references to other doc
-#TODO: SURE computation
-#TODO: generalize the precision matrix type (eg ASAP)
-#TODO: complete README.md
-#FIXME: add the call to a sum of :Cost
-#FIXME: rename SubProblem into InvProblem
 
+"""
+    InverseProblem
+
+This package aims at developing tools that are used in the general inverse
+problem framework.
+
+"""
 module InverseProblem
 
 export
     brentmin,
     call,
     call!,
+    Cost,
+    degree,
     edgepreserving,
+    get_grad_op,
     homogenedgepreserving,
     HomogenRegul,
     InvProblem,
     Lkl,
-    newton_raphson_solve!,
+    multiplier,
     norml1,
     norml2,
+    powellbobyqa,
     powellnewuoa,
     tikhonov,
     quasinewton,
@@ -37,7 +42,8 @@ export
     solve,
     solve!,
     SumRegul,
-    test_tol
+    test_tol,
+    use_direct_inversion
 
 import Base: *
 using LazyAlgebra
@@ -46,6 +52,7 @@ using OptimPackNextGen
 import OptimPackNextGen.Brent
 import OptimPackNextGen.Powell.Newuoa
 import OptimPackNextGen.Powell.Bobyqa
+using Statistics
 
 
 include("types.jl")

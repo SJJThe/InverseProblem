@@ -1,5 +1,5 @@
 #
-# types.jl --
+# types.jl
 #
 # Defines generic structures common to inverse problems.
 #
@@ -16,6 +16,9 @@ Abstract type which behaves like a `Mapping` type of `LazyAlgebra` and which
 refers to `call` and `call!` functions when applied to an element as an 
 operator.
 
+See also [`call`](@ref), [`call!`](@ref), [`LazyAlgebra.Mapping`](@ref),
+[`Lkl`](@ref), [`InvProblem`](@ref), [`Regul`](@ref)
+
 """
 abstract type Cost <: Mapping end
 
@@ -27,11 +30,14 @@ abstract type Cost <: Mapping end
 
 
 """
-    call!([a::Real=1,] f, x, g; incr::Bool = false)
+    call!([a=1,] f, x, g [; incr=false])
 
-gives back the value of a*f(x) while updating (in place) its gradient in g. 
-incr is a boolean indicating if the gradient needs to be incremanted or 
+gives back the value of a*f(x) while updating (in place) its gradient in `g`. 
+`incr` is a boolean indicating if the gradient needs to be incremanted or 
 reseted.
+
+# Keywords
+ - `incr`::Bool
 
 """
 call!(f, x, g; kwds...) = call!(1.0, f, x, g; kwds...)
@@ -48,16 +54,20 @@ call(f, x) = call(1.0, f, x)
 
 
 """
-    Lkl(A, d [,w=ones(size(d))])
+    Lkl(A, d [, w=ones(size(d))])
 
 yields a structure containing the elements essential to compute the Maximum likelihood 
-criterion, in the Gaussian hypothesis, of an `AbstractArray` `x`, that is:
+criterion of an `AbstractArray` `x`, in the Gaussian hypothesis, that is:
                             (A(x) - d)'.Diag(w).(A(x) - d)
+with Diag(w) the diagonal natrix whose diagonal elements are the one sotred in `w`.
 
 Getters of an instance `L` can be imported with `InversePbm.` before:
- - model(L)   # gets the model `A`.
- - data(L)    # gets the data `d`.
- - weights(L) # gets the weights `w` associated to the data `d`.
+ - model(L)       # gets the model `A`.
+ - data(L)        # gets the data `d`.
+ - weights(L)     # gets the weights `w` associated to the data `d`.
+ - input_size(L)  # gets the input size that should correspond to the input size
+   of `A` and to the size of `x`.
+ - output_size(L) # gets the output size, that is the same size as `d`.
 
 # Examples
  To apply it to an `AbstractArray` `x`, use:
@@ -73,7 +83,7 @@ struct Lkl{M<:Mapping,D<:AbstractArray} <: Cost
     w::D # weights of data
 
     function Lkl(A::M, d::D, w::D) where {M<:Mapping,D<:AbstractArray}
-        @assert size(d) == size(w)# == output_size(A)
+        @assert size(d) == size(w)
         return new{M,D}(A, d, w)
     end
 end
@@ -129,15 +139,23 @@ abstract type Regularization <: Cost end
 
 
 """
-    Regul([mu::Real=1,] f)
+    Regul([mu=1,] f [, direct_inversion=false])
 
-yields a structure of supertype `Regularization` containing the element necessary 
+yields a structure of supertype `Regularization` containing the elements necessary 
 to compute a regularization term `f` with it's multiplier `mu`. Creating an instance 
-of Regul permits to use the `call` and `call!` functions specialized.
+of Regul permits to use the `call` and `call!` functions that need to be
+specialized. 
+
+The `direct_inversion` boolean indicates if the regularization can
+be directly inverted, in the context of the Normal equations. In that case, the
+method `get_grad_op` can be called to yield the operator of the gradient that can
+be applied directly.
 
 Getters of an instance `R` can be imported with `InversePbm.` before:
- - multiplier(R) # gets the multiplier `mu`.
- - func(R)       # gets the computing process `f`.
+ - multiplier(R)           # gets the multiplier `mu`.
+ - func(R)                 # gets the computing process `f`.
+ - use_direct_inversion(R) # indicates if it is possible to use the direct
+   inversion method to solve the Normal equations.
 
 # Example
 ```julia
@@ -145,6 +163,7 @@ julia> R = Regul(a, MyRegul)
 Regul:
  - level `mu` : a
  - function `func` : MyRegul
+ - use direct inversion `direct_inversion` : false
 ```
 with `MyRegul` a strucure which defines the behaviors of `call([a,] MyRegul, x)` and 
 `call!([a,] MyRegul, x, g [;incr])` on an `AbstractArray` `x` and its gradient `g`.
@@ -152,18 +171,23 @@ with `MyRegul` a strucure which defines the behaviors of `call([a,] MyRegul, x)`
 To apply it to `x`, use:
 ```julia
 julia> R([a,] x)            # apply call([a,] R, x)
-julia> R([a,] x, g [;incr]) # apply call!([a,] R, x, g [;incr])
+julia> R([a,] x, g [; incr]) # apply call!([a,] R, x, g [;incr])
 ```
 
-Applying a scalar `b` to an insance `R` yields a new instance of `Regul`:
+Applying a scalar `b` to an instance `R` yields a new instance of `Regul`:
 ```julia
-julia> R = b*Regul(a, MyRegul)
+julia> R = b*Regul(a, MyRegul, true)
 Regul:
  - level `mu` : b*a
  - function `func` : MyRegul
+ - use direct inversion `direct_inversion` : true
 ```
 
-#FIXME: update
+Getting the gradient operator of an instance `R`, that can be used direclty in a
+direct inversion scheme is done by calling:
+```julia
+julia> get_grad_op([a=1,] R)
+```
 
 """
 struct Regul{T<:Real,F} <: Regularization
@@ -197,27 +221,12 @@ function call!(a::Real,
     return call!(a*multiplier(R), func(R), x, g; incr=incr)
 end
 
-# function call!(R::Regul,
-#     x::AbstractArray{T,N},
-#     g::AbstractArray{T,N};
-#     incr::Bool = false) where {T,N}
-
-#     return call!(multiplier(R), func(R), x, g; incr=incr)
-# end
-
-
 function call(a::Real,
     R::Regul,
     x::AbstractArray{T,N}) where {T,N}
     
     return call(a*multiplier(R), func(R), x)
 end
-
-# function call(R::Regul,
-#     x::AbstractArray{T,N}) where {T,N}
-    
-#     return call(multiplier(R), func(R), x)
-# end
 
 
 function get_grad_op(a::Real,
@@ -236,28 +245,32 @@ end
 """
     HomogenRegul(Reg, deg)
 
-yields a structure of supertype `Regularization` representing an homogeneous regularization 
-and containing the multiplier `mu` which tunes it and the computing process/function
-which gives its value `f`, in a `Regul` structure, and the degree of `f`.
+yields a structure of supertype `Regularization` representing an homogeneous
+regularization and containing the multiplier `mu` which tunes it and the
+computing process/function which gives its value `f`, in a `Regul` structure,
+and the degree of `f`.
 
 Getters of an instance `R` can be imported with `InversePbm.` before:
- - multiplier(R) # gets the multiplier `mu`.
- - func(R)       # gets the computing process `f`.
- - param(R)      # gets the inner parameters of the regularization method.
- - degree(R)     # gets the degree `deg`.
+ - multiplier(R)           # gets the multiplier `mu`.
+ - func(R)                 # gets the computing process `f`.
+ - param(R)                # gets the inner parameters of the regularization method.
+ - degree(R)               # gets the degree `deg`.
+ - use_direct_inversion(R) # indicates if it is possible to use the direct
+   inversion method to solve the Normal equations.
 
 # Examples
 It is possible to create a new instance by directly giving the elements:
 ```julia
-julia> R = HomogenRegul([mu=1,] f [,deg=degree(f)])
+julia> R = HomogenRegul([mu=1,] f [inv=false, deg=degree(f)])
 ``
 
 Applying a scalar `b` to an insance `R` yields a new instance of `HomogenRegul`:
 ```julia
-julia> R = b*HomogenRegul(mu, f, d)
+julia> R = b*HomogenRegul(mu, f, d, true)
 Regul:
  - level `mu` : b*mu
  - function `func` : f
+ - use direct inversion `direct_inversion` : true
  - degree `deg` : d
  ```
  
@@ -266,6 +279,8 @@ Regul:
 julia> R([a,] x)             # apply call([a,] R, x)
 julia> R([a,] x, g [; incr]) # apply call!([a,] R, x, g [; incr])
 ```
+
+See also [`Regul`](@reff)
 
 """
 struct HomogenRegul{T} <: Regularization
@@ -287,6 +302,7 @@ Base.show(io::IO, R::HomogenRegul) = begin
     print(io,"HomogenRegul:")
     print(io,"\n - level `mu` : ",multiplier(R))
     print(io,"\n - function `func` : ",func(R))
+    print(io,"\n - use direct inversion `direct_inversion` : ",use_direct_inversion(R))
     print(io,"\n - degree `deg` : ",degree(R))
 end
 
@@ -332,7 +348,8 @@ end
 yields a structure containing the ingredients to compute a sub-problem
 criterion for a value of x:
                 (A.x - d)'.Diag(w).(A.x - d) + R(x)
-with `R` a regularization structure, `A`, `d` and `w` are contained in `L` (`Lkl` structure).
+with `R` a regularization structure, `A`, `d` and `w` are contained in `L`
+(`Lkl` structure).
 
 Getters of an instance `S` can be imported with `InversePbm.` before:
  - likelihood(S) # gets `Lkl` structure.
@@ -340,6 +357,9 @@ Getters of an instance `S` can be imported with `InversePbm.` before:
  - data(S)       # gets the data `d`.
  - weights(S)    # gets the weights `w` associated to the data `d`.
  - regul(S)      # gets the `Regularization` `R`.
+ - input_size(L)  # gets the input size that should correspond to the input size
+   of `A` and to the size of `x`.
+ - output_size(L) # gets the output size, that is the same size as `d`.
 
 # Examples
 It is possible to create a new instance by directly giving the elements:
@@ -352,6 +372,10 @@ julia> S = InvProblem(A, d, w, R)
 julia> S([a,] x)             # apply call([a,] S, x)
 julia> S([a,] x, g [; incr]) # apply call!([a,] S, x, g [; incr])
 ```
+where the second line updates the gradient of the criterion, stored in `g`,
+while yielding the result of the first line.
+
+See also: [`Lkl`](@ref), [`Regul`](@ref), [`HomogenRegul`](@ref)
 
 """
 struct InvProblem{RG<:Regularization} <: Cost
@@ -403,37 +427,41 @@ end
 """
     Solver
 
-Abstract type shared by methods for solving inverse problems. The type is used to specified
-which method to use when optimizing on a `InvProblem` structure. An instance of a structure 
-of super-type `Solver` obeys to solving methods `solve` and `solve!`. 
+Abstract type shared by methods for solving inverse problems. The type is used
+to specified which method to use when optimizing on a `InvProblem` structure. An
+instance of a structure of super-type `Solver` obeys to solving methods `solve`
+and `solve!`.
 
 """
 abstract type Solver end
 
 """
-    solve!([x::AbstractArray,] S, m [,c=[]]; kwds...)
+    solve!([x=ones(input_size(S)),] S, m [,c=[]]; kwds...)
 
-yields the solution of applying the optimization method `m` on the problem `S` and store it
-in the initialization `x`. If `x` is not given, a one `AbstractArray` of same size as the 
-input argument of `S` is created to initialize the optimization method `m`. `c` can contains 
-the values of the criterion computed for optimization by the method `m`.
+yields the solution of applying the optimization method `m` on the criterion `S`
+and store it in the initialization `x`. If `x` is not given, a one
+`AbstractArray` of same size as the input argument of `S` is created to
+initialize the optimization method `m`. `c` can contains the values of the
+criterion computed for optimization by the method `m`.
 
 # Keywords
- - keep_loss : (`false` by default) allows to store the values of the criterion in `cache`.
+ - keep_loss : (`false` by default) allows to store the values of the criterion
+   in the cache `c`.
 
 """
 solve!(S, m, c=Float64[]; kwds...) = solve!(ones(input_size(S)), S, m, c; kwds...)
 
 """
-    solve([x::AbstractArray,] S, m [,c=[]]; kwds...)
+    solve([x=ones(input_size(S)),] S, m [,c=[]]; kwds...)
 
-yields the solution of applying the optimization method `m` on the problem `S`. If `x` is 
-not given, a one `AbstractArray` of same size as the input argument of `S` is created to 
-initialize the optimization method `m`. `c` can contains the values of the criterion 
-computed for optimization by the method `m`.
+yields the solution of applying the optimization method `m` on the problem `S`.
+If `x` is not given, a one `AbstractArray` of same size as the input argument of
+`S` is created to initialize the optimization method `m`. `c` can contains the
+values of the criterion computed for optimization by the method `m`.
 
 # Keywords
- - keep_loss : (`false` by default) allows to store the values of the criterion in `cache`.
+ - keep_loss : (`false` by default) allows to store the values of the criterion
+   in the cache `c`.
 
 """
 solve(x::AbstractArray, S, m, c=Float64[]; kwds...) = solve!(vcopy(x), S, m, c; kwds...)
