@@ -46,7 +46,7 @@ function test_tol(x::X,
     nrm = T(0)
     for i in eachindex(x, x_last)
         res += abs(x[i] - x_last[i])^order
-        nrm[i] += abs(x_last[i])^order
+        nrm += abs(x_last[i])^order
     end
 
     return res^(1/order) <= max(atol, rtol*nrm^(1/order))
