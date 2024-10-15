@@ -195,7 +195,7 @@ degree(::Tikhonov) = 2.0
 tikhonov() = HomogenRegul(Tikhonov(), true)
 
 
-```
+"""
     WeightedTikhonov
 
     yields an instance of weighted Tikhonov smoothness regularization of `x`, that is:
@@ -214,7 +214,7 @@ julia> R([a,] x)            # apply call([a,] R, x)
 julia> R([a,] x, g [; incr]) # apply call!([a,] R, x, g [; incr])
 ```
 
-```
+"""
 struct WeightedTikhonov{T<:Real} <: Regularization
     mu::T # multiplier
     w::AbstractArray
