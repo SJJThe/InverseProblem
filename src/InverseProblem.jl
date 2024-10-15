@@ -43,7 +43,8 @@ export
     solve!,
     SumRegul,
     test_tol,
-    use_direct_inversion
+    use_direct_inversion,
+    WeightedTikhonov
 
 import Base: *
 using LazyAlgebra
