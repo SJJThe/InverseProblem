@@ -195,6 +195,87 @@ degree(::Tikhonov) = 2.0
 tikhonov() = HomogenRegul(Tikhonov(), true)
 
 
+```
+    WeightedTikhonov
+
+    yields an instance of weighted Tikhonov smoothness regularization of `x`, that is:
+```
+                    ∑ ||D_i x||_w^2
+                    i
+```
+with `D_i`, an approximation of the gradient of `x` at index `i`.
+
+`tikhonov` is a `HomogenRegul` structure of degree `2`.
+
+# Example
+```julia
+julia> R = WeightedTikhonov(mu, w)
+julia> R([a,] x)            # apply call([a,] R, x)
+julia> R([a,] x, g [; incr]) # apply call!([a,] R, x, g [; incr])
+```
+
+```
+struct WeightedTikhonov{T<:Real} <: Regularization
+    mu::T # multiplier
+    w::AbstractArray
+    
+    function WeightedTikhonov(mu::T,w::AbstractArray) where {T<:Real}
+        return new{T}(mu,w)
+    end
+end
+
+multiplier(R::WeightedTikhonov) = R.mu
+weights(R::WeightedTikhonov) = R.w
+
+#WeightedTikhonov(w) = WeightedTikhonov(1.0, w)
+#WeightedTikhonov(mu::Real) = mu*tikhonov()
+
+*(a::Real, R::WeightedTikhonov) = WeightedTikhonov(a*multiplier(R), weights(R))
+
+Base.show(io::IO, R::WeightedTikhonov) = begin
+    print(io,"Weighted Tikhonov:")
+    print(io,"\n - level `mu` : ",multiplier(R))
+    print(io,"\n - weights` : ", weights(R))
+end
+
+function call!(a::Real,
+    R::WeightedTikhonov,
+    x::AbstractArray{T,N},
+    g::AbstractArray{T,N};
+    incr::Bool = false) where {T,N}
+
+    W = weights(R)
+    mu = multiplier(R)
+    @assert size(x) == size(W)[1:end-1] && size(W)[end] == N
+    
+    D = Diff()
+    r = D*x
+    wr = Diag(W)*r
+        
+    apply!(2*a*mu, D', wr, (incr ? 1 : 0), g)
+    
+    return Float64(a*mu*vdot(r, wr))
+end
+
+function call(a::Real,
+    R::WeightedTikhonov,
+    x::AbstractArray{T,N}) where {T,N}
+
+    W = weights(R)
+    mu = multiplier(R)
+    @assert size(x) == size(W)[1:end-1] && size(W)[end] == N
+    
+    D = Diff()
+    
+    r= D*x
+    wr= Diag(W)*r
+ 
+    return Float64(mu*a*vdot(r, wr))
+end
+
+
+degree(::WeightedTikhonov) = 2.0
+
 
 
 """
