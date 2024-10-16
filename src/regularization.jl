@@ -226,7 +226,7 @@ end
 
 multiplier(R::WeightedTikhonov) = R.mu
 weights(R::WeightedTikhonov) = R.w
-
+use_direct_inversion(R::WeightedTikhonov) = false
 #WeightedTikhonov(w) = WeightedTikhonov(1.0, w)
 #WeightedTikhonov(mu::Real) = mu*tikhonov()
 
