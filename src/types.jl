@@ -421,6 +421,63 @@ function call(a::Real,
     return Float64(L(a, x) + R(a, x))
 end
 
+"""
+    BilinearInverseProblem
+"""
+
+abstract type BilinearInverseProblem <: Mapping end
+
+(P::BilinearInverseProblem)(::Val{:degJ})=call(P,Val(:degJ))
+(P::BilinearInverseProblem)(::Val{:degK})=call(P,Val(:degK))
+(P::BilinearInverseProblem)(::Val{:Jx},x)=call(P,Val(:Jx),x)
+(P::BilinearInverseProblem)(::Val{:Ky},y)=call(P,Val(:Ky),y)
+(P::BilinearInverseProblem)(::Val{:x},x,y,μ)=call(P,Val(:x),x,y,μ)
+(P::BilinearInverseProblem)(::Val{:y},x,y,ν)=call(P,Val(:y),x,y,ν)
+
+"""
+    BilinearProblem
+"""
+struct BilinearProblem{M<:Mapping,
+                       S<:SparseInterpolator,
+                       D<:AbstractArray,
+                       R<:Regularization} <: BilinearInverseProblem
+    d::D
+    w::D
+    Fx::M
+    Fy::S
+    Rx::R
+    Ry::R
+end
+
+call(P::BilinearProblem, ::Val{:degJ})=degree(P.Rx)
+call(P::BilinearProblem, ::Val{:degK})=degree(P.Ry)
+call(P::BilinearProblem, ::Val{:Jx},x)=call(1.,P.Rx,x)
+call(P::BilinearProblem, ::Val{:Ky},y)=call(1.,P.Ry,y)
+
+
+function call(P::BilinearProblem, ::Val{:x},x::AbstractArray{T,N},y::AbstractVector{T},μ::T) where {T<:AbstractFloat,N}
+    Y = P.Fy * y;
+    yFx = Diag(Y)*P.Fx
+    Cx = Lkl(yFx,P.d,P.w)
+    Ix = InvProblem(Cx, μ*P.Rx)
+    function fg_solve!(x::AbstractArray{T,N}, g::AbstractArray{T,N})
+        return call!(Ix, h, g)
+    end
+    vmlmb!(fg_solve!, x; lower=T(0),maxiter=50, verb=10, mem=3) #FIXME
+    return x, call(1., Cx, x), call(1.,P.Rx,x)
+end
+
+function call(P::BilinearProblem, ::Val{:y},x::AbstractArray{T,N},y::AbstractVector{T},ν::T) where {T<:AbstractFloat,N}
+    X = P.Fx * x;
+    XFy = Diag(X) * P.Fy
+    Cy = Lkl(XFy,P.d,P.w)
+    Iy = InvProblem(Cy, ν*P.Ry)
+    function fg_solve!(y::AbstractVector{T}, g::AbstractVector{T})
+        return call!(Iy, y, g)
+    end
+    vmlmb!(fg_solve!, y; lower=T(0),maxiter=50, verb=10, mem=3) #FIXME
+    return y, call(1., Cy, y), call(1.,P.Ry,y)
+end
 
 
 
