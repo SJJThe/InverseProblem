@@ -18,6 +18,8 @@ problem framework.
 module InverseProblem
 
 export
+    BilinearInverseProblem,
+    BilinearProblem,
     brentmin,
     call,
     call!,
