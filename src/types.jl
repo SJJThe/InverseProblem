@@ -433,6 +433,7 @@ abstract type BilinearInverseProblem <: Mapping end
 (P::BilinearInverseProblem)(::Val{:Ky},y)=call(P,Val(:Ky),y)
 (P::BilinearInverseProblem)(::Val{:x},x,y,μ)=call(P,Val(:x),x,y,μ)
 (P::BilinearInverseProblem)(::Val{:y},x,y,ν)=call(P,Val(:y),x,y,ν)
+(P::BilinearInverseProblem)(x,y,μ,ν)=call(P,x,y,μ,ν)
 
 """
     BilinearProblem
@@ -456,7 +457,7 @@ call(P::BilinearProblem, ::Val{:Ky},y)=call(1.,P.Ry,y)
 
 
 function call(P::BilinearProblem, ::Val{:x},x::AbstractArray{T,N},y::AbstractVector{T},μ::T) where {T<:AbstractFloat,N}
-    Y = P.Fy * y;
+    Y = P.Fy * y
     yFx = Diag(Y)*P.Fx
     Cx = Lkl(yFx,P.d,P.w)
     Ix = InvProblem(Cx, μ*P.Rx)
@@ -464,11 +465,11 @@ function call(P::BilinearProblem, ::Val{:x},x::AbstractArray{T,N},y::AbstractVec
         return call!(Ix, h, g)
     end
     vmlmb!(fg_solve!, x; lower=T(0),maxiter=50, verb=10, mem=3) #FIXME
-    return x, call(1., Cx, x), call(1.,P.Rx,x)
+    return x, call(1., Cx, x), call(μ,P.Rx,x)
 end
 
 function call(P::BilinearProblem, ::Val{:y},x::AbstractArray{T,N},y::AbstractVector{T},ν::T) where {T<:AbstractFloat,N}
-    X = P.Fx * x;
+    X = P.Fx * x
     XFy = Diag(X) * P.Fy
     Cy = Lkl(XFy,P.d,P.w)
     Iy = InvProblem(Cy, ν*P.Ry)
@@ -476,9 +477,19 @@ function call(P::BilinearProblem, ::Val{:y},x::AbstractArray{T,N},y::AbstractVec
         return call!(Iy, y, g)
     end
     vmlmb!(fg_solve!, y; lower=T(0),maxiter=50, verb=10, mem=3) #FIXME
-    return y, call(1., Cy, y), call(1.,P.Ry,y)
+    return y, call(1., Cy, y), call(ν,P.Ry,y)
 end
 
+function call(P::BilinearProblem, x::AbstractArray{T,N},y::AbstractVector{T},μ::T,ν::T) where {T<:AbstractFloat,N}
+    X = P.Fx * x
+    Y = P.fY * y
+    M = X.*Y
+    res = P.d - M
+    Df = vdot(res, P.w .* res)
+    Rx = call(μ,P.Rx,x)
+    Ry = call(ν,P.Ry,y)
+    return Df + Rx + Ry
+end
 
 
 """
