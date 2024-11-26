@@ -438,16 +438,17 @@ abstract type BilinearInverseProblem <: Mapping end
 """
     BilinearProblem
 """
-struct BilinearProblem{M<:Mapping,
-                       S<:SparseInterpolator,
+struct BilinearProblem{M1<:Mapping,
+                       M2<:Mapping,
                        D<:AbstractArray,
-                       R<:Regularization} <: BilinearInverseProblem
+                       R1<:Regularization,
+                       R2<:Regularization} <: BilinearInverseProblem
     d::D
     w::D
-    Fx::M
-    Fy::S
-    Rx::R
-    Ry::R
+    Fx::M1
+    Fy::M2
+    Rx::R1
+    Ry::R2
 end
 
 call(P::BilinearProblem, ::Val{:degJ})=degree(P.Rx)
