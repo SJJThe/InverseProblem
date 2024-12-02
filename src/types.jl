@@ -463,7 +463,7 @@ function call(P::BilinearProblem, ::Val{:x},x::AbstractArray{T,N},y::AbstractVec
     Cx = Lkl(yFx,P.d,P.w)
     Ix = InvProblem(Cx, μ*P.Rx)
     function fg_solve!(x::AbstractArray{T,N}, g::AbstractArray{T,N})
-        return call!(Ix, h, g)
+        return call!(Ix, x, g)
     end
     vmlmb!(fg_solve!, x; lower=T(0),maxiter=50, verb=10, mem=3) #FIXME
     return x, call(1., Cx, x), call(μ,P.Rx,x)
