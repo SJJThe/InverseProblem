@@ -21,11 +21,13 @@ export
     BilinearInverseProblem,
     BilinearProblem,
     brentmin,
+    build_Vandermonde_matrix,
     call,
     call!,
     Cost,
     degree,
     edgepreserving,
+    fit_polynomial_law,
     get_grad_op,
     homogenedgepreserving,
     HomogenRegul,
@@ -34,6 +36,8 @@ export
     multiplier,
     norml1,
     norml2,
+    PolynLaw,
+    PolynMdl,
     powellbobyqa,
     powellnewuoa,
     tikhonov,
@@ -51,15 +55,19 @@ export
 import Base: *
 using LazyAlgebra
 import LazyAlgebra: input_size, output_size
+using LinearAlgebra
+using LinearInterpolators
 using OptimPackNextGen
 import OptimPackNextGen.Brent
 import OptimPackNextGen.Powell.Newuoa
 import OptimPackNextGen.Powell.Bobyqa
 using Statistics
+using TwoDimensional
 
 
 include("types.jl")
 include("regularization.jl")
 include("solvers.jl")
+include("fit_pol_tools.jl")
 
 end # module

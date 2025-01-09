@@ -494,6 +494,112 @@ end
 
 
 """
+    PolynLaw{N,T,D}(a)
+
+Yields a structure containing the `N`-dimensional polynomial law of degree `D` defined by
+the coefficients in `a` of type `T`.
+
+Write `P(x)` to compute the value of the polynomial `P` at `x` (either a `Real` for 1D 
+polynomials or a `Point` for 2D polynomials).
+
+"""
+struct PolynLaw{N,T,D} <: Function
+    coefs::AbstractVector{T}
+
+    function PolynLaw{N,T,D}(a::AbstractVector{T}) where {N,T,D}
+        D >= 0 || error("got a negatif polynomial degree")
+        if N == 1
+            n = D + 1
+        elseif N == 2
+            n = ((D + 1)*(D + 2)) >> 1
+        else
+            error("$(N) dimensional polynomial are not implemented")
+        end
+        length(a) == n || error("Expected $(n) coefficients, got $(length(a))")
+        return new{N,T,D}(a)
+    end
+end
+get_coefs(P::PolynLaw{N,T,D}) where {N,T,D} =P.coefs
+
+function (P::PolynLaw{N,T,D})(pt) where {N,T,D}
+    
+    mdl = PolynMdl{N,T,D}(pt)
+    
+    return mdl(get_coefs(P))
+end
+
+
+
+
+"""
+    PolynMdl{N,T,D}(x)
+
+Yieds a list of the parameter `x` up to the powers of the decomposition of the 
+`N`-dimensional polynomial of degree `D`.
+
+This structure is used in the computation of the polynomial law structure `PolynLaw`.
+
+"""
+struct PolynMdl{N,T,D} <: Function
+    mdl::AbstractVector{AbstractVector{T}}
+
+    function PolynMdl{1,T,D}(x::U) where {T,D,U<:Real}
+        D >= 0 || error("got a negatif polynomial degree")
+        mdl = AbstractVector[]
+        for d in 0:D
+            push!(mdl, [x^d])
+        end
+        return new{1,T,D}(mdl)
+    end
+    function PolynMdl{2,T,D}(coord::Point{U}) where {T,D,U<:Real}
+        D >= 0 || error("got a negatif polynomial degree")
+        x, y = coord
+        mdl = AbstractVector[]
+        for d in 0:D
+            vars = []
+            degx = d
+            degy = 0
+            while degx >= 0 && degy <= d
+                push!(vars, x^degx*y^degy)
+                degx -= 1
+                degy += 1
+            end
+            push!(mdl, vars)
+        end
+        return new{2,T,D}(mdl)
+    end
+    function PolynMdl{N,T,D}(coord::Point{U}) where {N,T,D,U<:Real}
+        error("$(N) dimensional polynomial are not implemented")
+    end
+end
+get_mdl(P::PolynMdl) = P.mdl
+
+function (P::PolynMdl{N,T,D})(a::AbstractVector{T}) where {N,T,D}
+    
+    if N == 1
+        n = D + 1
+    elseif N == 2
+        n = ((D + 1)*(D + 2)) >> 1
+    end
+    length(a) == n || error("Expected $(n) coefficients, got $(length(a))")
+    result = T(0)
+    mdl = P.mdl
+    c_min = 1
+    for d in eachindex(mdl)
+        coord = mdl[d]
+        c_max = c_min + length(coord) - 1
+        coefs = a[c_min:c_max]
+        result += coord'*coefs
+        c_min = c_max + 1
+    end
+
+    return result
+end
+
+
+
+
+"""
     Solver
 
 Abstract type shared by methods for solving inverse problems. The type is used
